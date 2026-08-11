@@ -13,6 +13,11 @@ TwoWire I2C_2 = TwoWire(1);
 Adafruit_AS5600 theta_as5600;
 Adafruit_AS5600 length_as5600;
 
+// Length側AS5600のループカウント
+int32_t loopCount = 0;
+int32_t lastRawAngle = 0;
+bool isFirstRead = true;
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -60,27 +65,79 @@ void setup() {
 }
 
 void loop() {
+
+  // =========================
   // Theta AS5600
+  // =========================
   uint16_t theta_raw = theta_as5600.getRawAngle();
   float theta_deg = theta_raw * 360.0 / 4096.0;
 
+
+  // =========================
   // Length AS5600
+  // =========================
   uint16_t length_raw = length_as5600.getRawAngle();
-  float length_deg = length_raw * 360.0 / 4096.0;
+
+  // 初回読み取り
+  if (isFirstRead) {
+    lastRawAngle = length_raw;
+    isFirstRead = false;
+  }
+
+  // 前回値との差
+  int32_t diff = (int32_t)length_raw - lastRawAngle;
+
+  // 360° → 0° を跨いだ
+  if (diff < -2048) {
+    loopCount++;
+  }
+  // 0° → 360° を跨いだ
+  else if (diff > 2048) {
+    loopCount--;
+  }
+
+  lastRawAngle = length_raw;
+
+  // 累積したRaw値
+  int32_t totalSteps =
+      loopCount * 4096 + length_raw;
+
+  // 累積角度
+  float totalDegree =
+      totalSteps * 360.0 / 4096.0;
+
+
+  // =========================
+  // 表示
+  // =========================
 
   Serial.print("Theta : RAW = ");
   Serial.print(theta_raw);
+
   Serial.print("  Angle = ");
   Serial.print(theta_deg);
+
   Serial.println(" deg");
+
 
   Serial.print("Length: RAW = ");
   Serial.print(length_raw);
+
   Serial.print("  Angle = ");
-  Serial.print(length_deg);
+  Serial.print(length_raw * 360.0 / 4096.0);
+
+  Serial.print(" deg");
+
+  Serial.print("  Loop = ");
+  Serial.print(loopCount);
+
+  Serial.print("  TotalAngle = ");
+  Serial.print(totalDegree);
+
   Serial.println(" deg");
+
 
   Serial.println("--------------------");
 
-  delay(200);
+  delay(10);
 }
