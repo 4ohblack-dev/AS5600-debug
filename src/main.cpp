@@ -5,6 +5,8 @@
 #define I2C1_SDA 21
 #define I2C1_SCL 22
 
+const int FIXED_PWM = 50;
+
 Adafruit_AS5600 theta_as5600;
 
 class MotorDrive {
@@ -42,6 +44,11 @@ public:
       ledcWrite(pwmch, 0);
     }
   }
+};
+
+struct currentState{
+  double current_theta;
+  double direction;
 };
 
 const int theta_pin = 18;
@@ -82,24 +89,43 @@ void setup() {
   Serial.println("=== Angle Reading ===");
 }
 
+void feedback_move(MotorDrive &motor,Adafruit_AS5600 &as5600,double angle,int pwm,float tolerance_range){
+  currentState state;
+  state.current_theta = as5600.getRawAngle() * 360.0 / 4096.0;
+  double difference = angle - state.current_theta;
+
+  if(difference < 0) state.direction=0;
+  else state.direction = 1;
+
+  if(abs(difference) > tolerance_range){
+    if(state.direction == 1){
+      motor.drive(pwm);
+    } else{
+      motor.drive(-pwm);
+    }
+  } else{
+    motor.drive(0);
+  }
+}
+
 void loop() {
 
-  // Theta AS5600
+  feedback_move(
+    theta_M,
+    theta_as5600,
+    90.0,   // 目標角度
+    100,    // 通常PWM
+    2.0     // 許容範囲 ±2°
+  );
+
   uint16_t theta_raw = theta_as5600.getRawAngle();
 
-  // Raw値 → 角度
-  float theta_deg = theta_raw * 360.0 / 4096.0;
+  float theta_deg =
+      theta_raw * 360.0 / 4096.0;
 
-  // 表示
-  Serial.print("Theta : RAW = ");
-  Serial.print(theta_raw);
-
-  Serial.print("  Angle = ");
+  Serial.print("Theta = ");
   Serial.print(theta_deg);
-
   Serial.println(" deg");
-
-  Serial.println("--------------------");
 
   delay(10);
 }
